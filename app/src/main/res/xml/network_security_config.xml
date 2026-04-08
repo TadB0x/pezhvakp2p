@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- No cleartext traffic allowed -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- Nostr relay WebSocket connections -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">relay.damus.io</domain>
+        <domain includeSubdomains="true">relay.nostr.band</domain>
+        <domain includeSubdomains="true">nos.lol</domain>
+        <domain includeSubdomains="true">relay.snort.social</domain>
+        <domain includeSubdomains="true">nostr.wine</domain>
+        <domain includeSubdomains="true">relay.primal.net</domain>
+    </domain-config>
+</network-security-config>

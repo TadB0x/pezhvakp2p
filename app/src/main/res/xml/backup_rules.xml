@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Never back up the encrypted key store or database -->
+    <exclude domain="sharedpref" path="pezhvak_keys.xml" />
+    <exclude domain="database" path="pezhvak.db" />
+</full-backup-content>
