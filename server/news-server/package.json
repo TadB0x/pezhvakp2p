@@ -1,0 +1,11 @@
+{
+  "name": "pezhvak-news-server",
+  "version": "1.0.0",
+  "description": "Pezhvak signed news publisher",
+  "main": "server.js",
+  "dependencies": {
+    "@noble/secp256k1": "^2.1.0",
+    "ws": "^8.18.0"
+  },
+  "engines": { "node": ">=18" }
+}

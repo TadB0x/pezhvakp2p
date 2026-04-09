@@ -1,0 +1,30 @@
+[info]
+relay_url = "wss://YOUR_DOMAIN"
+name = "Pezhvak Relay"
+description = "Pezhvak P2P mesh communications relay"
+pubkey = ""
+contact = ""
+
+[database]
+data_directory = "/usr/src/app/db"
+engine = "sqlite"
+
+[network]
+port = 8080
+address = "0.0.0.0"
+ping_interval_seconds = 300
+
+[limits]
+# Max message size (bytes)
+max_event_bytes = 131072
+# Max connections per IP
+max_conn = 64
+# Max subscriptions per connection
+max_subid_length = 100
+# Max filters per subscription
+limit_coalesce_min_seconds = 2
+
+[options]
+reject_future_seconds = 1800
+# Set to true to require NIP-42 auth (recommended for private relay)
+reject_unauthenticated = false

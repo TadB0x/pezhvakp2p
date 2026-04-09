@@ -1,0 +1,71 @@
+version: "3.9"
+
+services:
+  # ─── Nostr Relay (nostr-rs-relay) ────────────────────────────────────────────
+  relay:
+    image: scsibug/nostr-rs-relay:latest
+    restart: unless-stopped
+    ports:
+      - "7000:8080"
+    volumes:
+      - relay-data:/usr/src/app/db
+      - ./config/relay.toml:/usr/src/app/config.toml:ro
+    environment:
+      - RUST_LOG=info
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.relay.rule=Host(`${RELAY_DOMAIN}`)"
+      - "traefik.http.routers.relay.entrypoints=websecure"
+      - "traefik.http.routers.relay.tls.certresolver=letsencrypt"
+      - "traefik.http.services.relay.loadbalancer.server.port=8080"
+
+  # ─── Pezhvak News Server ──────────────────────────────────────────────────────
+  news:
+    image: node:20-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: node server.js
+    ports:
+      - "7001:3000"
+    volumes:
+      - ./news-server:/app:ro
+      - news-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - SERVER_PRIVKEY=${NEWS_SERVER_PRIVKEY}
+      - RELAY_URL=ws://relay:8080
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - PORT=3000
+    depends_on:
+      - relay
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.news.rule=Host(`${RELAY_DOMAIN}`) && PathPrefix(`/news`)"
+      - "traefik.http.routers.news.entrypoints=websecure"
+      - "traefik.http.routers.news.tls.certresolver=letsencrypt"
+
+  # ─── Traefik reverse proxy + auto TLS ────────────────────────────────────────
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certs:/letsencrypt
+
+volumes:
+  relay-data:
+  news-data:
+  traefik-certs:

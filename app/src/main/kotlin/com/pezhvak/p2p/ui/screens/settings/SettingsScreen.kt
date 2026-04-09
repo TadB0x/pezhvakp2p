@@ -16,6 +16,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onRelaySettings: () -> Unit = {},
+    onIdentity: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -51,7 +53,7 @@ fun SettingsScreen(
                     icon = Icons.Default.Key,
                     title = "My Public Key",
                     subtitle = state.pubKeyHex.take(16) + "…",
-                    onClick = { /* show QR */ }
+                    onClick = onIdentity,
                 )
             }
             item {
@@ -59,7 +61,7 @@ fun SettingsScreen(
                     icon = Icons.Default.Download,
                     title = "Backup Private Key",
                     subtitle = "Export your identity for backup",
-                    onClick = { showExportKeyDialog = true }
+                    onClick = { showExportKeyDialog = true },
                 )
             }
 
@@ -88,7 +90,7 @@ fun SettingsScreen(
                     icon = Icons.Default.Cloud,
                     title = "Nostr Relays",
                     subtitle = "${state.relayCount} relays configured",
-                    onClick = { /* relay list screen */ }
+                    onClick = onRelaySettings,
                 )
             }
 

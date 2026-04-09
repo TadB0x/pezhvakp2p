@@ -21,6 +21,7 @@ import com.pezhvak.p2p.core.db.entities.ChannelEntity
 @Composable
 fun ChannelListScreen(
     onChannelClick: (String) -> Unit,
+    onCreateChannel: () -> Unit,
     viewModel: ChannelViewModel = hiltViewModel(),
 ) {
     val channels by viewModel.subscribedChannels.collectAsState(initial = emptyList())
@@ -35,7 +36,7 @@ fun ChannelListScreen(
                     IconButton(onClick = { showDiscover = !showDiscover }) {
                         Icon(Icons.Default.Explore, "Discover")
                     }
-                    IconButton(onClick = { /* create channel */ }) {
+                    IconButton(onClick = onCreateChannel) {
                         Icon(Icons.Default.Add, "Create channel")
                     }
                 }

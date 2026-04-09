@@ -19,6 +19,7 @@ import com.pezhvak.p2p.core.db.entities.ForumThreadEntity
 @Composable
 fun ForumListScreen(
     onThreadClick: (String) -> Unit,
+    onNewThread: () -> Unit,
     viewModel: ForumViewModel = hiltViewModel(),
 ) {
     val threads by viewModel.threads.collectAsState(initial = emptyList())
@@ -28,7 +29,7 @@ fun ForumListScreen(
             TopAppBar(
                 title = { Text("Forums", fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(onClick = { /* new thread */ }) {
+                    IconButton(onClick = onNewThread) {
                         Icon(Icons.Default.Add, "New thread")
                     }
                 }
