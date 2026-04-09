@@ -49,10 +49,9 @@ class NewsRepository @Inject constructor(
          * Any news item not signed by this key is dropped.
          */
         // x-only secp256k1 pubkey of the Pezhvak news server.
-        // Derived from server privkey: 488e3394524a98f69862dbacbf096fd387819977aac4d3773274cc88eb5f4bdd
-        // Replace this with the real server pubkey before production release.
+        // RDP test server pubkey (news server running on this machine, port 7002)
         const val TRUSTED_NEWS_SERVER_KEY =
-            "488e3394524a98f69862dbacbf096fd387819977aac4d3773274cc88eb5f4bdd"
+            "02548b5e7acc45d90fcb47646d31cacd4a4a2dcf4a253b4cc8c5431303c97863e4"
 
         val TRUSTED_CURATOR_KEYS = setOf(
             TRUSTED_NEWS_SERVER_KEY,
