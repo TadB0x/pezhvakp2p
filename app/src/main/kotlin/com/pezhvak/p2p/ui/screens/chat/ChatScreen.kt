@@ -109,35 +109,36 @@ fun MessageBubble(message: MessageEntity, isOwn: Boolean) {
         MaterialTheme.colorScheme.onSurfaceVariant
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
         horizontalAlignment = alignment,
     ) {
         Box(
             modifier = Modifier
-                .widthIn(max = 280.dp)
+                .widthIn(max = 300.dp)
                 .clip(RoundedCornerShape(
-                    topStart = 16.dp, topEnd = 16.dp,
-                    bottomStart = if (isOwn) 16.dp else 4.dp,
-                    bottomEnd = if (isOwn) 4.dp else 16.dp,
+                    topStart = 20.dp, topEnd = 20.dp,
+                    bottomStart = if (isOwn) 20.dp else 4.dp,
+                    bottomEnd = if (isOwn) 4.dp else 20.dp,
                 ))
                 .background(bubbleColor)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Column {
                 Text(
                     text = message.contentPlain ?: "…",
                     color = textColor,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(4.dp))
                 Row(
+                    modifier = Modifier.align(Alignment.End),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = formatTimestamp(message.createdAt),
                         style = MaterialTheme.typography.labelSmall,
-                        color = textColor.copy(alpha = 0.6f),
+                        color = textColor.copy(alpha = 0.7f),
                     )
                     if (isOwn) {
                         DeliveryStatusIcon(message.deliveryStatus, textColor)
@@ -194,35 +195,41 @@ fun MessageInputBar(
     onAttach: () -> Unit,
 ) {
     Surface(
-        tonalElevation = 8.dp,
-        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+        shadowElevation = 3.dp,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .padding(horizontal = 8.dp, vertical = 8.dp)
                 .navigationBarsPadding()
                 .imePadding(),
             verticalAlignment = Alignment.Bottom,
         ) {
-            IconButton(onClick = onAttach) {
+            IconButton(onClick = onAttach, modifier = Modifier.padding(bottom = 4.dp)) {
                 Icon(Icons.Default.AttachFile, "Attach")
             }
-            OutlinedTextField(
+            TextField(
                 value = value,
                 onValueChange = onValueChange,
-                placeholder = { Text("Message") },
+                placeholder = { Text("Message...") },
                 modifier = Modifier.weight(1f),
                 maxLines = 5,
                 shape = RoundedCornerShape(24.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                ),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(8.dp))
             if (value.isNotBlank()) {
-                FilledIconButton(onClick = onSend) {
+                FilledIconButton(onClick = onSend, modifier = Modifier.padding(bottom = 4.dp)) {
                     Icon(Icons.Default.Send, "Send")
                 }
             } else {
-                IconButton(onClick = { /* voice message */ }) {
+                IconButton(onClick = { /* voice message */ }, modifier = Modifier.padding(bottom = 4.dp)) {
                     Icon(Icons.Default.Mic, "Voice")
                 }
             }
