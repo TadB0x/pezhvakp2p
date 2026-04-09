@@ -56,7 +56,9 @@ fun NewChatScreen(
                         IconButton(onClick = {
                             val id = if (pubKeyInput.startsWith("npub1"))
                                 pubKeyInput.drop(5) else pubKeyInput
-                            onOpenChat(id, id.take(12) + "…")
+                            val name = id.take(12) + "…"
+                            viewModel.ensureConversation(id, name)
+                            onOpenChat(id, name)
                         }) { Icon(Icons.Default.ArrowForward, "Start chat") }
                     }
                 },
@@ -92,6 +94,7 @@ fun NewChatScreen(
                 LazyColumn {
                     items(contacts, key = { it.pubKeyHex }) { contact ->
                         ContactRow(contact, onClick = {
+                            viewModel.ensureConversation(contact.pubKeyHex, contact.displayName)
                             onOpenChat(contact.pubKeyHex, contact.displayName)
                         })
                         HorizontalDivider(modifier = Modifier.padding(start = 72.dp))

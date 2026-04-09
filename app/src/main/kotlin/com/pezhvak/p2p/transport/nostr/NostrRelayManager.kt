@@ -1,20 +1,28 @@
 package com.pezhvak.p2p.transport.nostr
 
+import android.content.Context
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private val Context.relayDataStore by preferencesDataStore(name = "relay_prefs")
+private val RELAY_URLS_KEY = stringSetPreferencesKey("relay_urls")
+
 /**
- * Manages a pool of Nostr relay connections.
+ * Manages a pool of Nostr relay connections with DataStore persistence.
  * Broadcasts events to all connected relays simultaneously (redundancy).
  * Deduplicates incoming events by event ID.
- *
- * Default relays can be overridden by user preferences.
  */
 @Singleton
-class NostrRelayManager @Inject constructor() {
+class NostrRelayManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val clients = mutableMapOf<String, NostrClient>()
@@ -26,28 +34,50 @@ class NostrRelayManager @Inject constructor() {
     private val _relayStatuses = MutableStateFlow<Map<String, NostrClient.ConnectionState>>(emptyMap())
     val relayStatuses: StateFlow<Map<String, NostrClient.ConnectionState>> = _relayStatuses.asStateFlow()
 
+    // Exposed for UI — persisted relay URL list
+    val relayUrls: StateFlow<List<String>> = context.relayDataStore.data
+        .map { prefs -> prefs[RELAY_URLS_KEY]?.toList()?.sorted() ?: emptyList() }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
     companion object {
-        val DEFAULT_RELAYS = listOf(
-            "wss://relay.damus.io",
-            "wss://relay.nostr.band",
-            "wss://nos.lol",
-            "wss://relay.snort.social",
-            "wss://nostr.wine",
-            "wss://relay.primal.net",
-        )
+        // No default public relays — user adds their own
+        val DEFAULT_RELAYS: List<String> = emptyList()
     }
 
-    fun start(relayUrls: List<String> = DEFAULT_RELAYS) {
-        relayUrls.forEach { url -> addRelay(url) }
+    fun start() {
+        // Load persisted relays and connect
+        scope.launch {
+            relayUrls.first().forEach { url -> connectRelay(url) }
+        }
     }
 
     fun addRelay(url: String) {
+        scope.launch {
+            context.relayDataStore.edit { prefs ->
+                val current = prefs[RELAY_URLS_KEY] ?: emptySet()
+                prefs[RELAY_URLS_KEY] = current + url
+            }
+            connectRelay(url)
+        }
+    }
+
+    fun removeRelay(url: String) {
+        scope.launch {
+            context.relayDataStore.edit { prefs ->
+                val current = prefs[RELAY_URLS_KEY] ?: emptySet()
+                prefs[RELAY_URLS_KEY] = current - url
+            }
+            clients.remove(url)?.disconnect()
+            _relayStatuses.value = _relayStatuses.value - url
+        }
+    }
+
+    private fun connectRelay(url: String) {
         if (clients.containsKey(url)) return
         val client = NostrClient(url, scope)
         clients[url] = client
         client.connect()
 
-        // Forward events, deduplicating across relays
         scope.launch {
             client.incomingEvents.collect { event ->
                 if (seenEventIds.add(event.id)) {
@@ -55,20 +85,15 @@ class NostrRelayManager @Inject constructor() {
                 }
             }
         }
-        // Track connection statuses
         scope.launch {
-            client.connectionState.collect { state ->
+            client.connectionState.collect {
                 _relayStatuses.value = clients.mapValues { it.value.connectionState.value }
             }
         }
     }
 
-    fun removeRelay(url: String) {
-        clients.remove(url)?.disconnect()
-    }
-
     /**
-     * Publish to all connected relays. Returns map of relay→result.
+     * Publish to all connected relays.
      */
     suspend fun publish(event: NostrEvent): Map<String, NostrClient.PublishResult> {
         return clients.values

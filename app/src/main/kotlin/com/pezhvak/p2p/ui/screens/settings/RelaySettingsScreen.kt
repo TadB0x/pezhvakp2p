@@ -84,13 +84,21 @@ fun RelaySettingsScreen(
                 HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
             }
             item {
-                TextButton(
-                    onClick = { viewModel.resetToDefaults() },
-                    modifier = Modifier.padding(16.dp),
-                ) {
-                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Reset to defaults")
+                if (relays.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                        contentAlignment = androidx.compose.ui.Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.CloudOff, null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(8.dp))
+                            Text("No relays added")
+                            Text("Tap + to add a relay", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                 }
             }
         }
@@ -136,27 +144,19 @@ class RelaySettingsViewModel @Inject constructor(
     private val nostrRelayManager: NostrRelayManager,
 ) : ViewModel() {
 
-    private val _relays = MutableStateFlow(NostrRelayManager.DEFAULT_RELAYS)
-    val relays: StateFlow<List<String>> = _relays.asStateFlow()
+    // Directly mirror the persisted relay list from the manager
+    val relays: StateFlow<List<String>> = nostrRelayManager.relayUrls
     val statuses = nostrRelayManager.relayStatuses
 
     fun addRelay(url: String) {
-        _relays.value = (_relays.value + url).distinct()
         nostrRelayManager.addRelay(url)
     }
 
     fun removeRelay(url: String) {
-        _relays.value = _relays.value.filter { it != url }
         nostrRelayManager.removeRelay(url)
     }
 
-    fun resetToDefaults() {
-        val current = _relays.value.toSet()
-        val defaults = NostrRelayManager.DEFAULT_RELAYS.toSet()
-        // Remove non-defaults
-        current.filter { it !in defaults }.forEach { nostrRelayManager.removeRelay(it) }
-        // Add missing defaults
-        defaults.filter { it !in current }.forEach { nostrRelayManager.addRelay(it) }
-        _relays.value = NostrRelayManager.DEFAULT_RELAYS
+    fun clearAll() {
+        relays.value.forEach { nostrRelayManager.removeRelay(it) }
     }
 }

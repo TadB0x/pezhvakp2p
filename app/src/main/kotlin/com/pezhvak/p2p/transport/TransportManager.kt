@@ -1,6 +1,10 @@
 package com.pezhvak.p2p.transport
 
 import com.pezhvak.p2p.core.crypto.*
+import com.pezhvak.p2p.core.db.dao.MessageDao
+import com.pezhvak.p2p.core.db.entities.ConversationType
+import com.pezhvak.p2p.core.db.entities.DeliveryStatus
+import com.pezhvak.p2p.core.db.entities.MessageEntity
 import com.pezhvak.p2p.core.db.entities.TransportSource
 import com.pezhvak.p2p.core.identity.KeyManager
 import com.pezhvak.p2p.transport.ble.BleMeshAdapter
@@ -19,6 +23,7 @@ import javax.inject.Singleton
 /**
  * Unified transport facade.
  * Sends via all available transports; deduplicates received messages.
+ * Persists all sent/received messages to the local Room database.
  */
 @Singleton
 class TransportManager @Inject constructor(
@@ -26,6 +31,7 @@ class TransportManager @Inject constructor(
     private val bleMeshAdapter: BleMeshAdapter,
     private val wifiDirectAdapter: WifiDirectAdapter,
     private val keyManager: KeyManager,
+    private val messageDao: MessageDao,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val seenEventIds = LruSet<String>(maxSize = 50_000)
@@ -60,11 +66,11 @@ class TransportManager @Inject constructor(
     }
 
     private fun listenAllTransports() {
-        // Nostr relay events
+        // Nostr relay events → persist incoming channel/forum messages
         scope.launch {
             nostrRelayManager.events.collect { event ->
                 if (seenEventIds.add(event.id)) {
-                    _messages.emit(IncomingMessage(
+                    val msg = IncomingMessage(
                         eventId = event.id,
                         senderPubKey = event.pubkey,
                         encryptedContent = event.content,
@@ -73,7 +79,9 @@ class TransportManager @Inject constructor(
                         createdAt = event.created_at * 1000L,
                         transport = TransportSource.NOSTR,
                         nostrEvent = event,
-                    ))
+                    )
+                    _messages.emit(msg)
+                    persistIncomingIfPublic(msg)
                 }
             }
         }
@@ -126,6 +134,37 @@ class TransportManager @Inject constructor(
         }
     }
 
+    /** Persist channel/forum messages that arrive from the network */
+    private suspend fun persistIncomingIfPublic(msg: IncomingMessage) {
+        val conversationId = when (msg.kind) {
+            NostrKind.CHANNEL_MESSAGE, NostrKind.FORUM_REPLY -> {
+                msg.tags.firstOrNull { it.getOrNull(0) == "e" }?.getOrNull(1) ?: return
+            }
+            else -> return
+        }
+        val type = if (msg.kind == NostrKind.FORUM_REPLY) ConversationType.FORUM else ConversationType.CHANNEL
+        val entity = MessageEntity(
+            eventId = msg.eventId,
+            conversationId = conversationId,
+            conversationType = type,
+            senderPubKey = msg.senderPubKey,
+            senderSig = "",
+            contentEncrypted = null,
+            contentPlain = msg.encryptedContent,
+            contentHash = sha256(msg.encryptedContent.toByteArray()).toHexString(),
+            replyToEventId = msg.tags.firstOrNull { it.getOrNull(0) == "e" && it.getOrNull(3) == "reply" }?.getOrNull(1),
+            mediaAttachments = null,
+            reactions = null,
+            createdAt = msg.createdAt,
+            receivedAt = System.currentTimeMillis(),
+            deliveryStatus = DeliveryStatus.DELIVERED,
+            transportSource = msg.transport,
+            seenByPeerAt = null,
+            threadId = if (type == ConversationType.FORUM) conversationId else null,
+        )
+        messageDao.insert(entity)
+    }
+
     // ─── Send ────────────────────────────────────────────────────────────────
 
     suspend fun sendDirectMessage(
@@ -153,13 +192,42 @@ class TransportManager @Inject constructor(
         content: String,
         kind: Int = NostrKind.CHANNEL_MESSAGE,
     ): NostrEvent {
+        val myPubKey = keyManager.getOrCreateIdentity().pubKeyHex
         val event = NostrEvent.build(
             privKeyHex = keyManager.getPrivateKeyHex(),
             kind = kind,
             content = content,
             tags = listOf(listOf("e", channelId, "", "root"), listOf("channel_id", channelId)),
         )
-        nostrRelayManager.publish(event)
+
+        // Persist locally first so UI updates immediately
+        val type = if (kind == NostrKind.FORUM_REPLY) ConversationType.FORUM else ConversationType.CHANNEL
+        val entity = MessageEntity(
+            eventId = event.id,
+            conversationId = channelId,
+            conversationType = type,
+            senderPubKey = myPubKey,
+            senderSig = event.sig,
+            contentEncrypted = null,
+            contentPlain = content,
+            contentHash = sha256(content.toByteArray()).toHexString(),
+            replyToEventId = null,
+            mediaAttachments = null,
+            reactions = null,
+            createdAt = event.created_at * 1000L,
+            receivedAt = System.currentTimeMillis(),
+            deliveryStatus = DeliveryStatus.SENDING,
+            transportSource = TransportSource.NOSTR,
+            seenByPeerAt = null,
+            threadId = if (type == ConversationType.FORUM) channelId else null,
+        )
+        messageDao.insert(entity)
+
+        // Broadcast
+        scope.launch {
+            nostrRelayManager.publish(event)
+            messageDao.updateStatus(event.id, DeliveryStatus.SENT)
+        }
         broadcastViaBle(content, event.id)
         return event
     }
